@@ -1,0 +1,7 @@
+{
+  "clipDuration": 8,
+  "triggerWords": ["OMG", "NO WAY", "CLIP THIS", "WTF", "WILD"],
+  "spikeThreshold": 10,
+  "perUserSpikeThreshold": 5,
+  "spikeWindowMs": 3000
+}
