@@ -12,7 +12,10 @@
     "cookie-session": "^2.1.0",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
+    "form-data": "^4.0.3",
     "mongoose": "^8.16.1",
+    "openai": "^5.8.2",
+    "socket.io": "^4.8.1",
     "tmi.js": "^1.8.5"
   },
   "devDependencies": {

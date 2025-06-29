@@ -1,6 +1,5 @@
 const tmi = require("tmi.js");
-const settings = require("../config/settings.json");
-const Spike = require("../models/Spike");
+const settings = require("../../config/settings.json");
 
 function createChatMonitor({ username, oauth, onSpike }) {
   const client = new tmi.Client({
@@ -47,7 +46,8 @@ function createChatMonitor({ username, oauth, onSpike }) {
     // Metrics
     const globalSpikeCount = data.messages.length;
     const userSpikeCount = data.userMap[user].length;
-    const uniqueUsers = new Set(data.messages.map((m) => m.user)).size;
+    const uniqueUsers = new Set(data.messages.map((m) => m.user));
+    const userList = [...uniqueUsers];
 
     const isTrigger = settings.triggerWords.some((word) =>
       message.toUpperCase().includes(word)
@@ -59,24 +59,16 @@ function createChatMonitor({ username, oauth, onSpike }) {
       (settings.perUserSpikeThreshold &&
         userSpikeCount >= settings.perUserSpikeThreshold) ||
       (settings.uniqueUserSpikeThreshold &&
-        uniqueUsers >= settings.uniqueUserSpikeThreshold);
+        uniqueUsers.size >= settings.uniqueUserSpikeThreshold);
 
     if (shouldTrigger) {
       onSpike(tags, message, {
         globalSpikeCount,
         userSpikeCount,
-        uniqueUsers,
+        uniqueUsers: uniqueUsers.size,
+        users: userList, // ✅ pass user list here
         channel,
       });
-
-      // Save spike to MongoDB
-      Spike.create({
-        timestamp: new Date(),
-        channel,
-        messageCount: globalSpikeCount,
-        uniqueUsers,
-        triggerMessage: message,
-      }).catch(console.error);
 
       // Optional: reset for next spike window
       activityMap[channel].messages = [];
