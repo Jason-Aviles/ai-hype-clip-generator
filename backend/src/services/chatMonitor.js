@@ -10,7 +10,6 @@ function createChatMonitor({ username, oauth, onSpike }) {
     channels: [username],
   });
 
-  // Map of activity per channel
   const activityMap = {}; // channel => { messages: [], userMap: {} }
 
   client.connect();
@@ -29,21 +28,17 @@ function createChatMonitor({ username, oauth, onSpike }) {
     }
 
     const data = activityMap[channel];
-
-    // Track global messages
     data.messages.push({ time: now, user });
     data.messages = data.messages.filter(
       (msg) => now - msg.time < settings.spikeWindowMs
     );
 
-    // Track per-user messages
     if (!data.userMap[user]) data.userMap[user] = [];
     data.userMap[user].push(now);
     data.userMap[user] = data.userMap[user].filter(
       (ts) => now - ts < settings.spikeWindowMs
     );
 
-    // Metrics
     const globalSpikeCount = data.messages.length;
     const userSpikeCount = data.userMap[user].length;
     const uniqueUsers = new Set(data.messages.map((m) => m.user));
@@ -66,17 +61,21 @@ function createChatMonitor({ username, oauth, onSpike }) {
         globalSpikeCount,
         userSpikeCount,
         uniqueUsers: uniqueUsers.size,
-        users: userList, // ✅ pass user list here
+        users: userList,
         channel,
       });
 
-      // Optional: reset for next spike window
       activityMap[channel].messages = [];
       activityMap[channel].userMap = {};
     }
   });
 
-  return client;
+  return {
+    stop: () => {
+      client.removeAllListeners("message");
+      client.disconnect();
+    },
+  };
 }
 
 module.exports = { createChatMonitor };

@@ -5,10 +5,13 @@ const Clip = require("../models/Clip");
 const settings = require("../../config/settings.json");
 const { transcribeAudio } = require("./whisperService");
 const { analyzeEmotion } = require("./emotionService");
+const { analyzeFaceEmotion } = require("./faceEmotionService");
+const { getIO } = require("../socket");
+const { uploadFileToS3 } = require("./s3Service");
 
 let isRecording = false;
 
-function isClipViral({ transcript, emotion }) {
+function isClipViral({ transcript, emotion, faceEmotion }) {
   if (!transcript) return false;
 
   const keywords = ["OMG", "NO WAY", "WTF", "CRAZY", "INSANE", "CLUTCH"];
@@ -16,9 +19,28 @@ function isClipViral({ transcript, emotion }) {
     transcript.toUpperCase().includes(kw)
   );
 
-  const emotionScore = ["excited", "angry", "happy"].includes(emotion);
+  const voiceEmotionScore = ["excited", "angry", "happy"].includes(emotion);
+  const faceEmotionScore = ["surprise", "happy", "fear"].includes(faceEmotion);
 
-  return hasKeyword || emotionScore;
+  const scoreDetails = {
+    transcriptMatched: hasKeyword,
+    voiceEmotionMatched: voiceEmotionScore,
+    faceEmotionMatched: faceEmotionScore,
+  };
+
+  console.log("📊 Trigger breakdown:", scoreDetails);
+
+  const scoreCount = Object.values(scoreDetails).filter(Boolean).length;
+  return scoreCount === 3 || scoreCount >= 2;
+}
+
+function sendProgress(status, percent) {
+  try {
+    const io = getIO();
+    io.emit("clipProgress", { status, percent });
+  } catch (e) {
+    console.warn("⚠️ Socket.io not initialized, skipping progress update");
+  }
 }
 
 async function triggerClipSpike(tags, message) {
@@ -27,57 +49,90 @@ async function triggerClipSpike(tags, message) {
 
   const timestamp = Date.now();
   const username = tags["display-name"] || "unknown";
-  const filePath = path.join(__dirname, `../../clips/spike-${timestamp}.mp4`);
 
-  // 🎙 Video & audio input index: 1:1 = screen + mic #1
-  const ffmpegCmd = `ffmpeg -y -f avfoundation -framerate 30 -i "1:1" -t ${settings.clipDuration} -ac 1 -ar 44100 -af "afftdn=nf=-25, highpass=f=90, lowpass=f=12000, dynaudnorm=f=200:g=15" "${filePath}"`;
+  const audioPath = path.join(__dirname, `../../clips/audio-${timestamp}.wav`);
+  const videoPath = path.join(__dirname, `../../clips/video-${timestamp}.mp4`);
+  const finalClipPath = path.join(
+    __dirname,
+    `../../clips/spike-${timestamp}.mp4`
+  );
 
-  console.log("🎥 Starting screen recording...");
+  const soxCmd = `sox -t coreaudio default "${audioPath}" trim 0 ${settings.clipDuration}`;
+  const ffmpegVideoCmd = `ffmpeg -y -f avfoundation -framerate 30 -video_size 1280x720 -i "1:none" -t ${settings.clipDuration} "${videoPath}"`;
+  const mergeCmd = `ffmpeg -y -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac -shortest "${finalClipPath}"`;
 
-  exec(ffmpegCmd, async (error) => {
-    let transcript = "";
-    let emotion = "";
-    let viral = false;
+  try {
+    sendProgress("🎙 Recording clean audio with SoX...", 10);
+    await execPromise(soxCmd);
 
-    if (!error) {
-      console.log("📼 Clip recorded:", filePath);
+    sendProgress("🎥 Recording video with FFmpeg...", 30);
+    await execPromise(ffmpegVideoCmd);
 
-      try {
-        transcript = await transcribeAudio(filePath);
-        console.log("🗣 Transcript:", transcript || "(empty)");
+    sendProgress("🔗 Merging audio + video...", 60);
+    await execPromise(mergeCmd);
 
-        if (transcript) {
-          emotion = await analyzeEmotion(transcript);
-          console.log("😮 Emotion Detected:", emotion);
-        } else {
-          console.warn(
-            "⚠️ Skipping emotion detection due to empty transcript."
-          );
-        }
-
-        viral = isClipViral({ transcript, emotion });
-        console.log("🔥 Viral:", viral);
-      } catch (err) {
-        console.error("❌ Transcription/Emotion error:", err.message);
-      }
-
-      await Clip.create({
-        username,
-        message,
-        transcript,
-        emotion,
-        filePath,
-        viral,
-        type: "chat_spike",
-        createdAt: new Date(),
+    sendProgress("🧠 Capturing face emotion via webcam...", 70);
+    let faceEmotion = "unknown";
+    try {
+      faceEmotion = await analyzeFaceEmotion(null, {
+        live: true,
+        backend: "mediapipe",
       });
-
-      console.log("🧠 Clip saved to MongoDB");
-    } else {
-      console.error("❌ ffmpeg error:", error.message);
+    } catch (e) {
+      console.warn("⚠️ Face emotion analysis failed:", e.message);
     }
 
-    isRecording = false;
+    sendProgress("🗣 Transcribing audio...", 80);
+    const transcript = await transcribeAudio(audioPath);
+    console.log("🗣 Transcript:", transcript || "(empty)");
+
+    let emotion = "";
+    if (transcript) {
+      sendProgress("😮 Analyzing voice emotion...", 90);
+      emotion = await analyzeEmotion(transcript);
+    }
+
+    const viral = isClipViral({ transcript, emotion, faceEmotion });
+
+    sendProgress("☁️ Uploading clip to S3...", 95);
+    const s3FilePath = await uploadFileToS3(
+      finalClipPath,
+      `spike-${timestamp}.mp4`
+    );
+
+    await Clip.create({
+      username,
+      message,
+      transcript,
+      emotion,
+      faceEmotion,
+      filePath: s3FilePath,
+      viral,
+      type: "chat_spike",
+      createdAt: new Date(),
+    });
+
+    console.log("🧠 Clip saved to MongoDB");
+
+    fs.unlink(audioPath, () => {});
+    fs.unlink(videoPath, () => {});
+    fs.unlink(finalClipPath, () => {});
+
+    sendProgress("✅ Done!", 100);
+  } catch (err) {
+    console.error("❌ Error during clip creation:", err.message);
+    sendProgress("❌ Error during clip creation", 0);
+  }
+
+  isRecording = false;
+}
+
+function execPromise(command) {
+  return new Promise((resolve, reject) => {
+    exec(command, (err, stdout, stderr) => {
+      if (err) reject(err);
+      else resolve(stdout);
+    });
   });
 }
 
