@@ -1,103 +1,84 @@
-🎬 AI Hype Clip Auto-Generator — Backend
-This is the backend service for the AI Hype Clip Auto-Generator app. It:
+🔥 AI Hype Clip Auto-Generator — Backend
+Automatically detects hype moments on Twitch and clips them in real-time.
 
-Listens for chat spikes (via Twitch)
+✅ Features
+🔍 Real-time Twitch chat spike detection (configurable)
 
-Records video/audio
+🎙️ Voice emotion analysis via Whisper + GPT-4
 
-Detects hype moments using:
+📸 Face emotion detection via webcam (DeepFace + Mediapipe)
 
-💬 Chat spikes
+🎞️ Auto-records and uploads viral clips to S3
 
-🗣 Voice emotion (via Whisper + Emotion AI)
+📊 Admin dashboard with spikes, stats, and charts
 
-😲 Facial emotion (via webcam + DeepFace)
+🛡️ FFmpeg + Streamlink failure fallback detection
 
-Generates viral-ready clips
+🪟 Windows launch support via .bat script
 
-Syncs with frontend via Socket.io
+⚙️ Requirements
+Node.js (v18+ recommended)
 
-🧱 Tech Stack
-Node.js (Express)
+Python (3.8+)
 
-Socket.io (real-time updates)
+FFmpeg installed & in your system PATH
 
-Python (DeepFace, OpenCV for face emotion)
+Streamlink installed globally
 
-MongoDB (clip metadata)
+Webcam access (optional but recommended for face emotion)
 
-FFmpeg + SoX (video/audio recording)
+OpenAI API Key (.env)
 
-Whisper API (for transcription)
+MongoDB (local or remote)
 
-DeepFace + TensorFlow (emotion detection)
+AWS credentials for S3 uploads
 
-🚀 Features
-Feature	Description
-📡 Twitch Chat Spike Detection	Live monitoring via OAuth
-🎥 Screen Video + Clean Mic Audio	Captures separately, merges via FFmpeg
-🧠 Emotion Logic	Transcription, voice sentiment, face emotion
-🧠 2-of-3 Trigger Rule	Requires 2 of: hype chat, voice emotion, face emotion
-⚙️ GPU Support	Optimized with tensorflow-metal on macOS
-📡 Socket.io Events	Sends live progress and clips to frontend
-
-🔧 Setup
-1. Clone + Install (Node)
+📦 Installation
 bash
 Copy
-git clone https://github.com/yourname/ai-hype-clip-generator
-cd backend
+git clone https://github.com/yourusername/hypeclip-backend
+cd hypeclip-backend
 npm install
-2. Install Python + DeepFace
-bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+🧠 Environment Variables (.env)
+env
 Copy
-pip install deepface opencv-python tensorflow-macos tensorflow-metal tf-keras
-3. FFmpeg + SoX
-macOS:
-
-bash
-Copy
-brew install ffmpeg sox
-4. Environment
-Create config/settings.json:
-
-json
-Copy
-{
-  "clipDuration": 5
-}
-💻 Run Backend
+OPENAI_API_KEY=your_openai_key
+AWS_ACCESS_KEY_ID=your_key
+AWS_SECRET_ACCESS_KEY=your_secret
+S3_BUCKET=your_bucket
+ENABLE_KEYWORD_TRIGGER=true
+🚀 Start Backend (Unix/macOS)
 bash
 Copy
 node index.js
-📡 API Endpoints
+🪟 Start Backend (Windows via .bat)
+Create a start-backend.bat:
+
+bat
+Copy
+@echo off
+echo Starting HypeClip Backend...
+call backend\.venv\Scripts\activate
+node backend\index.js
+pause
+Double-click to run.
+
+📊 API Endpoints
 Method	Route	Description
-GET	/start-monitoring	Start Twitch chat tracking
-GET	/health	Uptime check
-GET	/api/clip/:id	Get a specific clip by ID
+GET	/api/stats	Returns clip/spike analytics
+GET	/api/clips	All saved clips
+GET	/start-monitoring	Begin Twitch monitoring
+GET	/stop-monitoring	Stop Twitch monitoring
 
-🔄 Socket.io Events
-Event	Payload
-clipProgress	{ status, percent }
-new_spike	{ ...spike }
-new_clip	{ ...clip }
+🧪 Troubleshooting
+FFmpeg/Streamlink fails?
+Make sure they are globally installed and in your system path.
 
-🧠 Emotion Pipeline
-Signal	Description
-💬 Chat spike	Burst in chat users/messages
-🗣 Voice Emotion	Via Whisper transcription + analysis
-😲 Face Emotion	Live webcam with DeepFace
-✅ Rule	2 of 3 triggers = record a clip<br/>All 3 triggers = instant clip
+Webcam errors?
+DeepFace may fail silently on headless servers or permission issues. Logs will warn you.
 
-✅ GPU Check (Optional)
-python
-Copy
-import tensorflow as tf
-print("Num GPUs Available:", len(tf.config.list_physical_devices('GPU')))
-🧪 Testing Face Emotion
-bash
-Copy
-cd backend/src/services
-python3 test_webcam_face_emotion.py
-🧼 Cleanup
-Recorded files auto-deleted after clip is saved.
+No stats/graph data?
+Ensure clips and spikes are being recorded and MongoDB is running.
+

@@ -14,8 +14,16 @@ async function transcribeAudio(filePath) {
     return null;
   }
 
+  const fileSize = fs.statSync(filePath).size;
+  console.log(
+    `📦 Uploading audio (${(fileSize / 1024).toFixed(2)} KB): ${filePath}`
+  );
+
   const form = new FormData();
-  form.append("file", fs.createReadStream(filePath));
+  form.append("file", fs.createReadStream(filePath), {
+    filename: path.basename(filePath),
+    contentType: "audio/mpeg", // adjust if needed
+  });
   form.append("model", "whisper-1");
 
   try {
@@ -27,7 +35,7 @@ async function transcribeAudio(filePath) {
           ...form.getHeaders(),
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         },
-        maxBodyLength: Infinity, // For longer audio
+        maxBodyLength: Infinity,
       }
     );
 

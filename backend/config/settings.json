@@ -1,7 +1,21 @@
 {
   "clipDuration": 8,
-  "triggerWords": ["OMG", "NO WAY", "CLIP THIS", "WTF", "WILD"],
+  "triggerWords": [
+    "OMG",
+    "NO WAY",
+    "CLIP THIS",
+    "WTF",
+    "WILD"
+  ],
   "spikeThreshold": 10,
   "perUserSpikeThreshold": 5,
-  "spikeWindowMs": 3000
+  "spikeWindowMs": 3000,
+  "overlays": [
+    {
+      "platform": "instagram",
+      "text": "@jay",
+      "x": "10",
+      "y": "h-40"
+    }
+  ]
 }

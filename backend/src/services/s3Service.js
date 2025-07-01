@@ -1,4 +1,3 @@
-// backend/services/s3Service.js
 const fs = require("fs");
 const AWS = require("aws-sdk");
 const path = require("path");
@@ -17,7 +16,7 @@ function uploadFileToS3(filePath, key) {
     const params = {
       Bucket: BUCKET_NAME,
       Key: key,
-      Body: fileStream,// Optional: allows public access
+      Body: fileStream,
     };
 
     s3.upload(params, (err, data) => {
@@ -27,4 +26,24 @@ function uploadFileToS3(filePath, key) {
   });
 }
 
-module.exports = { uploadFileToS3 };
+function downloadFileFromS3(s3Key, localPath) {
+  return new Promise((resolve, reject) => {
+    const params = {
+      Bucket: BUCKET_NAME,
+      Key: s3Key.replace(`https://${BUCKET_NAME}.s3.amazonaws.com/`, ""),
+    };
+
+    const fileStream = fs.createWriteStream(localPath);
+    s3.getObject(params)
+      .createReadStream()
+      .on("error", reject)
+      .pipe(fileStream)
+      .on("finish", resolve)
+      .on("error", reject);
+  });
+}
+
+module.exports = {
+  uploadFileToS3,
+  downloadFileFromS3,
+};
