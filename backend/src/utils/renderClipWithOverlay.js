@@ -17,8 +17,7 @@ function execPromise(command) {
 function buildOverlayFilters(overlays = []) {
   const drawCommands = [];
 
-  const fontPath =
-    settings.fontPath || "/System/Library/Fonts/Supplemental/Arial.ttf"; // fallback for macOS
+  const fontPath = "font/arial.ttf"; // fallback for macOS
   const fontSize = settings.fontSize || 48; // default size if undefined
 
   overlays.forEach((overlay, index) => {
